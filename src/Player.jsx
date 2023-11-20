@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { useKeyboardControls } from '@react-three/drei' 
 import { useState,   useEffect, useRef } from 'react'
 import * as THREE from 'three'
+import useGame from './stores/useGame'
 
 export default function Player() {
 
@@ -21,6 +22,14 @@ export default function Player() {
     * subscribe and get the presed keyboard
     */
     const [ subscribeKeys, getKeys ] = useKeyboardControls()
+
+    /*
+    * to retrive the store information 
+    */
+    const start = useGame((state) => state.start)
+    const end = useGame((state) => state.end)
+    const restart = useGame((state) => state.restart)
+    const blocksCount = useGame((state) => state.blocksCount)
 
     /* 
     * handel the jump action 
@@ -44,7 +53,26 @@ export default function Player() {
         if(hit.toi < 0.15)
             bodyRef.current.applyImpulse({ x: 0, y: 0.5, z: 0 })
     }
+
+    const reset = () => {
+        bodyRef.current.setTranslation({ x: 0, y: 0, z: 0 })
+        bodyRef.current.setLinvel({ x: 0, y: 0, z: 0 })
+        bodyRef.current.setAngvel({ x: 0, y: 0, z: 0 })
+    }
+
     useEffect(() => { 
+
+        /**
+         * subscribe to any change in the store
+         */
+        const unsbscribeReset = useGame.subscribe(
+            (state) => state.phase,
+            (value) => {
+                if(value === 'ready')
+                    reset()
+                
+            }
+        )
         /**
          * the function will subscribe and return function to unsbscribe to
          */
@@ -60,12 +88,22 @@ export default function Player() {
             }
         )
 
+        /**
+         * to change the game state
+         */
+        const unsbscribeAny = subscribeKeys(
+            () => { start() },
+            () => {}
+        )
+
         /** 
          * to clean up 
          *  
          */
         return () => {
             unsubscribeJump()
+            unsbscribeAny()
+            unsbscribeReset()
         }
     }, [])
 
@@ -131,6 +169,15 @@ export default function Player() {
 
         state.camera.position.copy(smoothedCameraPosition)
         state.camera.lookAt(smoothedCameraTarget)
+
+        /**
+         * Phases
+         */
+        if(bodyPosition.z < -(blocksCount * 4 + 2))
+            end()
+
+        if(bodyPosition.y < -4)
+            restart()
     })
 
     return <RigidBody 
